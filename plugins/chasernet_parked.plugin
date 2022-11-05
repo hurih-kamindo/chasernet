@@ -1,0 +1,37 @@
+
+sub chasernet_parked_init {
+    my $id = {
+           name        => "parked",
+           full_name   => "Parked Detection",
+           author      => "Sullo",
+           description => "Checks to see whether the host is parked at a registrar or ad location.",
+           hooks       => {
+                      scan   => { method => \&chasernet_parked, },
+                      weight => 18,
+                      },
+           copyright => "2011 Chris Sullo"
+           };
+    return $id;
+}
+
+sub chasernet_parked {
+    return if $mark->{'terminate'};
+    my ($mark) = @_;
+
+    my ($res, $content, $error, $request, $response) = nfetch($mark, $item->{'uri'}, "GET", "", "", "", "parked detection");
+
+    foreach my $string (keys %{ $VARIABLES->{'PARKEDSTRINGS'} }) {
+        return if $mark->{'terminate'};
+        $string = validate_and_fix_regex($string);
+        my @lines = split(/\n/, $content);
+        foreach my $line (@lines) {
+
+            # Check for the matches and pull out information
+            if ($line =~ /$string/) {
+                add_vulnerability($mark, "This domain appears to be parked", 999968, 0, "GET", $item->{'uri'}, $request, $response);
+            }
+        }
+    }
+}
+
+1;

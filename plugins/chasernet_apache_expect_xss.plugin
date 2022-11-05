@@ -1,0 +1,26 @@
+
+sub chasernet_apache_expect_xss_init {
+    my $id = {
+        name      => "apache_expect_xss",
+        full_name => "Apache Expect XSS",
+        author    => "Sullo",
+        description =>
+          "Checks whether the web servers has a cross-site scripting vulnerability through the Expect: HTTP header",
+        hooks     => { scan => { method => \&chasernet_apache_expect_xss, }, },
+        copyright => "2008 Chris Sullo"
+        };
+    return $id;
+}
+
+sub chasernet_apache_expect_xss {
+    return if $mark->{'terminate'};
+    my ($mark) = @_;
+    my %headers = ('Expect', '<script>alert(xss)</script>');
+    my ($code, $content, $errors, $request, $response) = nfetch($mark, "/", "GET", "", \%headers, "", "apache_expect_xss");
+
+    if ($content =~ /<script>alert\(xss\)<\/script>/) {
+	 add_vulnerability($mark, "Apache is vulnerable to XSS via the Expect header", 999974, 27487, "GET", "/", $request, $response);
+    }
+}
+
+1;

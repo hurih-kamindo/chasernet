@@ -1,0 +1,78 @@
+use vars qw/$FAVICONDB %LINKICONS/;
+
+sub chasernet_favicon_init {
+    my $id = { name        => "favicon",
+               full_name   => "Favicon",
+               author      => "Sullo",
+               description => "Checks the web server's favicon against known favicons.",
+               copyright   => "2008 Chris Sullo",
+               hooks       => {
+                          scan  => { method => \&chasernet_favicon, },
+                          start => { method => \&chasernet_favicon_load, }
+                          },
+                 };
+    return $id;
+}
+
+sub chasernet_favicon_load {
+    $FAVICONDB = init_db("db_favicon");
+}
+
+sub chasernet_favicon {
+    my ($mark) = @_;
+    return if $mark->{'terminate'};
+
+    # Check /favicon.ico
+    foreach my $ext (split(/,/,"ico,gif,png")) {
+	foreach my $path (split/,/,",/favicons") {
+    		my ($res, $content, $error, $request, $response) = nfetch($mark, "$path/favicon.$ext", "GET", "", "", "", "favicon");
+
+    		if (($res eq "200") && ($content ne "")) {
+        		my $hash = LW2::md5($content);
+        		$hash =~ s/^.*://;
+        		nprint("Got /favicon.$ext hash:$hash", "d", "");
+        		favicon_matchhash($mark, $hash, $mark->{'root'} . "/favicon.$ext", $request, $response);
+    		}
+	}
+     }
+
+    # Check for a <link> favicon
+    ($res, $content, $error, $request, $response) = nfetch($mark, "/", "GET", "", "", "", "favicon");
+    if (($res eq "200") && ($content =~ /link\s[^<]+icon+[^>]+\.(ico|png|gif)/i)) {
+        my %tags;
+        $tags{'link'} = 1;
+        LW2::html_find_tags(\$content, \&favicon_checkhash, '', '', \%tags);
+	foreach my $icon (keys %LINKICONS) {
+            ($res, $content, $error, $request, $response) = nfetch($mark, $icon, "GET", "", "", "", "favicon");
+            if (($res eq "200") && ($content ne "")) {
+                my $hash = LW2::md5($content);
+                $hash =~ s/^.*://;
+                nprint("Got $icon hash:$hash", "d", "");
+                favicon_matchhash($mark, $hash, $icon, $request, $response);
+            }
+        }
+    }
+}
+
+sub favicon_checkhash {
+    my ($tag, $elements) = @_;
+    while ((my ($e, $v)) = each(%{$elements})) {
+        if ($e ne 'href') { next; }
+        if ($v =~ /\.(ico|png|gif)$/) {
+            my @url = LW2::uri_split($v);
+            $LINKICONS{$url[0]}=1;
+        }
+    }
+    return;
+}
+
+sub favicon_matchhash {
+    my ($mark, $hash, $icon, $request, $response) = @_;
+    return if (($hash eq "") || ($icon eq ""));
+    foreach my $item (@$FAVICONDB) {
+        if ($item->{'md5hash'} eq $hash) {
+            add_vulnerability($mark, "$icon file identifies this app/server as: $item->{'description'}", $item->{'chasernet_id'}, 39272, "GET", $icon, $request, $response);
+        }
+    }
+}
+1;
